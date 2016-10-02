@@ -1,5 +1,7 @@
 #include "Shader.h"
 
+#include <oglplus/uniform.hpp>
+
 #include <log.h>
 #include <fstream>
 #include <sstream>
@@ -14,39 +16,35 @@ Shader::Shader(const std::string& commonData, const std::string& VertexShader, c
 		vertexCode = readFile(commonData);
 		// Retrieve the vertex/fragment source code from filePath
 		vertexCode.append(readFile(VertexShader));
-		std::cout << vertexCode << '\n';
 	} else {
 		vertexCode = readFile(VertexShader);
 	}
 
 	auto fragmentCode = readFile(PixelShader);
-	// Compile and link shaders
-	prepareShader(vertexCode.c_str(), fragmentCode.c_str());
+
+	m_vertexShader.Source(vertexCode).Compile();
+	m_fragmentShader.Source(fragmentCode).Compile();
+
+	m_program.AttachShader(m_vertexShader).AttachShader(m_fragmentShader);
+	m_program.Link();
 }
 
-/***********************************************************************************/
+/***********************************************************************************
 Shader::Shader(const std::string& commonData, const std::string& VertexShader, const std::string& PixelShader, const std::string& GeometryShader) {
 	// Retrieve the vertex/fragment source code from filePath
 	auto vertexCode = readFile(VertexShader);
 	auto fragmentCode = readFile(PixelShader);
 	auto geometryCode = readFile(GeometryShader);
-
-	// Compile and link shaders
-	prepareShader(vertexCode.c_str(), fragmentCode.c_str(), geometryCode.c_str());
 }
+*/
 
 /***********************************************************************************/
 Shader::~Shader() {
 }
 
 /***********************************************************************************/
-void Shader::Use() const {
-	glUseProgram(m_shaderProgram);
-}
-
-/***********************************************************************************/
 GLint Shader::GetUniformLoc(const std::string& Uniform) const {
-	GLint loc = glGetUniformLocation(m_shaderProgram, Uniform.c_str());
+	GLint loc = glGetUniformLocation(oglplus::GetGLName(m_program), Uniform.c_str());
 	if (loc == -1) {
 		std::string error = "Uniform: " + Uniform + " does not exist.\n";
 		std::cerr << error;
@@ -56,7 +54,6 @@ GLint Shader::GetUniformLoc(const std::string& Uniform) const {
 
 /***********************************************************************************/
 std::string Shader::readFile(const std::string& ShaderPath) {
-
 	std::string shaderCode;
 	std::ifstream file;
 	std::stringstream fileSS;
@@ -77,89 +74,15 @@ std::string Shader::readFile(const std::string& ShaderPath) {
 		} 
 		throw std::runtime_error("Failed to open: " + ShaderPath + '\n');
 	}
-	catch (std::ifstream::failure& e) {
+	catch (const std::ifstream::failure& e) {
 		std::cerr << "Shader error: " << e.what();
 		FILE_LOG(logERROR) << "Shader error " << e.what();
 	}
-	catch (std::runtime_error& e) {
+	catch (const std::runtime_error& e) {
 		std::cerr << "Shader error: " << e.what();
 		FILE_LOG(logERROR) << "Shader error " << e.what();
 	}
 	catch (...) {
 		std::cout << "Unhandled exception in Shader::readShader().\n";
-	}
-}
-
-/***********************************************************************************/
-void Shader::prepareShader(const GLchar* vertexShader, const GLchar* pixelShader) {
-
-	// Vertex shader
-	compileShader(vertexShader, ShaderType::VertexShader, m_vertexShader);
-
-	// Fragment shader
-	compileShader(pixelShader, ShaderType::PixelShader, m_pixelShader);
-
-	// Link shaders
-	m_shaderProgram = glCreateProgram();
-	glAttachShader(m_shaderProgram, m_vertexShader);
-	glAttachShader(m_shaderProgram, m_pixelShader);
-	glLinkProgram(m_shaderProgram);
-	// Check for linking errors
-	glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &m_success);
-	if (!m_success) {
-		glGetProgramInfoLog(m_shaderProgram, 512, NULL, m_infoLog);
-		std::cerr << "ERROR: shaders failed to link:\n" << m_infoLog << std::endl;
-		FILE_LOG(logERROR) << m_infoLog;
-	}
-
-	std::cout << "Compiled: " << m_shaderProgram << '\n';
-	// Clean up
-	glDeleteShader(m_vertexShader);
-	glDeleteShader(m_pixelShader);
-}
-
-/***********************************************************************************/
-void Shader::prepareShader(const GLchar* vertexShader, const GLchar* pixelShader, const GLchar* geometryShader) {
-
-	// Vertex shader
-	compileShader(vertexShader, ShaderType::VertexShader, m_vertexShader);
-
-	// Fragment shader
-	compileShader(pixelShader, ShaderType::PixelShader, m_pixelShader);
-
-	// Geometry Shader
-	compileShader(geometryShader, ShaderType::GeometryShader, m_geometryShader);
-
-	// Link
-	m_shaderProgram = glCreateProgram();
-	glAttachShader(m_shaderProgram, m_vertexShader);
-	glAttachShader(m_shaderProgram, m_geometryShader);
-	glAttachShader(m_shaderProgram, m_pixelShader);
-	// Check for linking errors
-	glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &m_success);
-	if (!m_success) {
-		glGetProgramInfoLog(m_shaderProgram, 512, NULL, m_infoLog);
-		std::cerr << "ERROR: shaders failed to link:\n" << m_infoLog << std::endl;
-		FILE_LOG(logERROR) << m_infoLog;
-	}
-
-	std::cout << "Compiled: " << m_shaderProgram << '\n';
-	//Clean up
-	glDeleteShader(m_vertexShader);
-	glDeleteShader(m_geometryShader);
-	glDeleteShader(m_pixelShader);
-}
-
-/***********************************************************************************/
-void Shader::compileShader(const GLchar* shaderSource, const ShaderType shaderType, GLuint& programID) {
-
-	programID = glCreateShader(shaderType);
-	glShaderSource(programID, 1, &shaderSource, NULL);
-	glCompileShader(programID);
-	glGetShaderiv(programID, GL_COMPILE_STATUS, &m_success);
-	if (!m_success) {
-		glGetShaderInfoLog(programID, 512, NULL, m_infoLog);
-		std::cerr << "ERROR: vertex shader compilation failed:\n" << m_infoLog << std::endl;
-		FILE_LOG(logERROR) << m_infoLog;
 	}
 }

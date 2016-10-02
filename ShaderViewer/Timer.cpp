@@ -33,12 +33,12 @@ void Timer::Update() {
 	m_framesElapsed++;
 
 	if (m_framesElapsed % 5 == 1) {
-		m_time1 = GetTime() / 1000;
+		m_time1 = GetTime() / 1000.0f;
 	}
 
 	else if (m_framesElapsed % 5 == 0) {
 		m_time1 = m_time2;
-		m_time2 = GetTime() / 1000;
+		m_time2 = GetTime() / 1000.0f;
 		m_diffTime = static_cast<float>(fabs(m_time2 - m_time1));
 	}
 

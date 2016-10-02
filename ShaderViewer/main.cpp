@@ -1,5 +1,5 @@
 #ifdef _DEBUG
-#include "vld.h"
+	#include "vld.h"
 #endif
 
 #define GLEW_STATIC
@@ -7,6 +7,7 @@
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <oglplus/config/site.hpp>
 
 #include <log.h>
 
@@ -18,6 +19,7 @@
 #include "Skybox.h"
 #include "HUDText.h"
 #include "Timer.h"
+#include "Renderer.h"
 #include "FrameBuffer.h"
 #include "PostProcess.h"
 
@@ -43,15 +45,14 @@ int main() {
 	FILELog::ReportingLevel() = logDEBUG;
 	FILE* log_fd = fopen("log.txt", "w");
 	Output2FILE::Stream() = log_fd;
-	
-	Timer timer;
-	timer.Init();
 
 	// Init GLFW
-	glfwInit();
+	if (!glfwInit()) {
+		throw std::runtime_error("GLFW initialization error");
+	}
 	// Set all the required options for GLFW
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, OGLPLUS_GL_VERSION_MAJOR);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, OGLPLUS_GL_VERSION_MINOR);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);
 	glfwWindowHint(GLFW_SAMPLES, 1);
@@ -67,25 +68,9 @@ int main() {
 	// GLFW Options
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	glewExperimental = GL_TRUE;
-	glewInit();
+	// Start up OpenGL renderer
+	Renderer renderer(1280, 720, Renderer::FILLED);
 
-	// Define the viewport dimensions
-	glViewport(0, 0, WIDTH, HEIGHT);
-	
-	// For wireframe mode
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
-	// OpenGL options (not state-dependent)
-	glEnable(GL_CULL_FACE); // Culling
-	glCullFace(GL_BACK); // Back-face culling
-	glEnable(GL_MULTISAMPLE); // MSAA from GLFW
-	glEnable(GL_BLEND); // Blending
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // Alpha blending
-	glEnable(GL_FRAMEBUFFER_SRGB); // Gamma correction
-
-	glDepthFunc(GL_LESS);
-	
 	// Create uniform buffer object for projection and view matrices (same data shared to multiple shaders)
 	GLuint uboMatrices;
 	glGenBuffers(1, &uboMatrices);
@@ -121,14 +106,8 @@ int main() {
 
 	// Game loop
 	while (!glfwWindowShouldClose(window)) {
-		// Calculate deltatime of current frame
-		GLfloat currentFrame = glfwGetTime();
-		deltaTime = currentFrame - lastFrame;
-		lastFrame = currentFrame;
 
-		// Update timer
-		timer.Update();
-
+		renderer.PreRender(glfwGetTime());
 		// Check if any events have been activiated (key pressed, mouse moved etc.) and call corresponding response functions
 		glfwPollEvents();
 		do_movement();
@@ -165,7 +144,6 @@ int main() {
 	
 			floorShader.Use();
 			model = glm::mat4();
-			//model = glm::translate(model, glm::vec3(0.0f));
 			model = glm::scale(model, glm::vec3(0.3f, 0.2f, 0.3f));
 			glUniformMatrix4fv(shader.GetUniformLoc("model"), 1, GL_FALSE, value_ptr(model));
 			floor.DrawInstanced(floorShader);
@@ -185,7 +163,7 @@ int main() {
 		pp.RendertoScreen(fb);
 
 		// Draw Text on top of everything
-		debugText.RenderText(fontShader, std::to_string(timer.GetFPS()) + " fps", 0.0f, HEIGHT - 36.0f, 1.0f, glm::vec3(0.0f));
+		//debugText.RenderText(fontShader, std::to_string(timer.GetFPS()) + " fps", 0.0f, HEIGHT - 36.0f, 1.0f, glm::vec3(0.0f));
 		
 		// Swap the screen buffers
 		glfwSwapBuffers(window);
