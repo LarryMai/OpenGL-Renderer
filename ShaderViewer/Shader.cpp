@@ -29,14 +29,31 @@ Shader::Shader(const std::string& commonData, const std::string& VertexShader, c
 	m_program.Link();
 }
 
-/***********************************************************************************
+/***********************************************************************************/
 Shader::Shader(const std::string& commonData, const std::string& VertexShader, const std::string& PixelShader, const std::string& GeometryShader) {
-	// Retrieve the vertex/fragment source code from filePath
-	auto vertexCode = readFile(VertexShader);
+	std::string vertexCode;
+
+	// Is the shader using common data?
+	if (!commonData.empty()) {
+		vertexCode = readFile(commonData);
+		// Retrieve the vertex/fragment source code from filePath
+		vertexCode.append(readFile(VertexShader));
+	}
+	else {
+		vertexCode = readFile(VertexShader);
+	}
+
 	auto fragmentCode = readFile(PixelShader);
 	auto geometryCode = readFile(GeometryShader);
+
+	m_vertexShader.Source(vertexCode).Compile();
+	m_geometryShader.Source(geometryCode).Compile();
+	m_fragmentShader.Source(fragmentCode).Compile();
+
+	m_program.AttachShader(m_vertexShader).AttachShader(m_geometryShader).AttachShader(m_fragmentShader);
+	m_program.Link();
 }
-*/
+
 
 /***********************************************************************************/
 Shader::~Shader() {

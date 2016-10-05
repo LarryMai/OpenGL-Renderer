@@ -2,7 +2,6 @@
 
 // GL Includes
 #include <GL/glew.h>
-#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 
@@ -32,7 +31,7 @@ public:
 	// Processes input received from a mouse input system. Expects the offset value in both the x and y direction.
 	void ProcessMouseMovement(GLfloat xoffset, GLfloat yoffset, GLboolean constrainPitch = true);
 
-	glm::mat4 GetViewMatrix() const { return glm::lookAt(Position, Position + Front, Up); }
+	glm::mat4 GetViewMatrixGL() const { return glm::lookAt(Position, Position + Front, Up); }
 	glm::vec3 GetPosition() const { return Position; }
 	GLfloat GetFOV() const { return m_FOV; }
 

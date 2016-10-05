@@ -50,6 +50,7 @@ int main() {
 	if (!glfwInit()) {
 		throw std::runtime_error("GLFW initialization error");
 	}
+
 	// Set all the required options for GLFW
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, OGLPLUS_GL_VERSION_MAJOR);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, OGLPLUS_GL_VERSION_MINOR);
@@ -69,7 +70,7 @@ int main() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// Start up OpenGL renderer
-	Renderer renderer(1280, 720, Renderer::FILLED);
+	Renderer renderer(1280, 720, Renderer::RenderMode::FILLED);
 
 	// Create uniform buffer object for projection and view matrices (same data shared to multiple shaders)
 	GLuint uboMatrices;
@@ -122,7 +123,7 @@ int main() {
 			// Enable depth testing for 3D stuff
 			glEnable(GL_DEPTH_TEST);
 			// Transformations
-			glm::mat4 view = camera.GetViewMatrix();
+			glm::mat4 view = camera.GetViewMatrixGL();
 			glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
 			glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));
 			
@@ -149,7 +150,7 @@ int main() {
 			floor.DrawInstanced(floorShader);
 	
 			//Always draw skybox last
-			skybox.Draw(skyboxShader, camera.GetViewMatrix(), projection);
+			skybox.Draw(skyboxShader, camera.GetViewMatrixGL(), projection);
 		}
 		fb.UnBind(); 
 		// Switch back to default framebuffer
@@ -163,7 +164,7 @@ int main() {
 		pp.RendertoScreen(fb);
 
 		// Draw Text on top of everything
-		//debugText.RenderText(fontShader, std::to_string(timer.GetFPS()) + " fps", 0.0f, HEIGHT - 36.0f, 1.0f, glm::vec3(0.0f));
+		debugText.RenderText(fontShader, std::to_string(renderer.GetFPS()) + " fps", 0.0f, HEIGHT - 36.0f, 1.0f, glm::vec3(0.0f));
 		
 		// Swap the screen buffers
 		glfwSwapBuffers(window);
@@ -189,14 +190,20 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 
 void do_movement() {
 	// Camera controls
-	if (keys[GLFW_KEY_W])
+	if (keys[GLFW_KEY_W]) {
 		camera.ProcessKeyboard(FORWARD, deltaTime);
-	if (keys[GLFW_KEY_S])
+		std::cout << "w\n";
+	}
+	if (keys[GLFW_KEY_S]) {
 		camera.ProcessKeyboard(BACKWARD, deltaTime);
-	if (keys[GLFW_KEY_A])
+		std::cout << "s\n";
+	}
+	if (keys[GLFW_KEY_A]) {
 		camera.ProcessKeyboard(LEFT, deltaTime);
-	if (keys[GLFW_KEY_D])
+	}
+	if (keys[GLFW_KEY_D]) {
 		camera.ProcessKeyboard(RIGHT, deltaTime);
+	}
 }
 
 bool firstMouse = true;

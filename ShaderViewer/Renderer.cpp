@@ -12,7 +12,7 @@ Renderer::Renderer(const GLuint width, const GLuint height, const RenderMode mod
 	m_glContext.Enable(Capability::Multisample);
 
 	m_glContext.Enable(Capability::CullFace);
-	m_glContext.CullFace(Face::Back);// Back-face culling
+	m_glContext.CullFace(Face::Back); // Back-face culling
 
 	m_glContext.Enable(Capability::Blend);
 	m_glContext.BlendFunc(0, BlendFunction::SrcAlpha, BlendFunction::OneMinusSrcAlpha); // Alpha blending
@@ -33,7 +33,7 @@ Renderer::Renderer(const GLuint width, const GLuint height, const RenderMode mod
 		break;
 	}
 
-	//m_timer.Init();
+	m_timer.Init();
 
 	std::cout << "\nOpenGL successfully initialized!" << std::endl;
 }
@@ -48,5 +48,5 @@ void Renderer::PreRender(const double currentTime) {
 	m_lastFrame = currentFrame;
 
 	// Update timer
-	//m_timer.Update();
+	m_timer.Update();
 }

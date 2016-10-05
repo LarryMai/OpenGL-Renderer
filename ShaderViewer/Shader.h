@@ -6,7 +6,7 @@
 class Shader {
 public:
 	Shader(const std::string& commonData, const std::string& VertexShader, const std::string& PixelShader);
-	//Shader(const std::string& commonData, const std::string& VertexShader, const std::string& PixelShader, const std::string& GeometryShader);
+	Shader(const std::string& commonData, const std::string& VertexShader, const std::string& PixelShader, const std::string& GeometryShader);
 
 	~Shader();
 

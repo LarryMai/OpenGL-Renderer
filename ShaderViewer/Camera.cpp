@@ -16,6 +16,7 @@ Camera::Camera(glm::vec3 position, glm::vec3 up, GLfloat yaw, GLfloat pitch, GLf
 
 /***********************************************************************************/
 void Camera::ProcessKeyboard(Camera_Movement direction, GLfloat deltaTime) {
+	
 	GLfloat velocity = MovementSpeed * deltaTime;
 	if (direction == FORWARD)
 		Position += Front * velocity;

@@ -156,6 +156,7 @@
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="FrameBuffer.cpp" />
     <ClCompile Include="HUDText.cpp" />
+    <ClCompile Include="IRenderer.cpp" />
     <ClCompile Include="Light.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />
