@@ -117,11 +117,12 @@ int main() {
 		// Render to bound framebuffer
 		{
 			// Clear the colorbuffer
-			glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+			Renderer::ClearColor(0.3f, 0.3, 0.3, 1.0f);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	
 			// Enable depth testing for 3D stuff
-			glEnable(GL_DEPTH_TEST);
+			Renderer::EnableCapability(oglplus::Capability::DepthTest);
+			
 			// Transformations
 			glm::mat4 view = camera.GetViewMatrixGL();
 			glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
@@ -150,15 +151,15 @@ int main() {
 			floor.DrawInstanced(floorShader);
 	
 			//Always draw skybox last
-			skybox.Draw(skyboxShader, camera.GetViewMatrixGL(), projection);
+			skybox.Draw(camera.GetViewMatrixGL(), projection);
 		}
 		fb.UnBind(); 
 		// Switch back to default framebuffer
 
-		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		Renderer::ClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 		// Disable depth test for screen quad and HUD
-		glDisable(GL_DEPTH_TEST);
+		Renderer::DisableCapability(oglplus::Capability::DepthTest);
 
 		// Render post-processed quad
 		pp.RendertoScreen(fb);
