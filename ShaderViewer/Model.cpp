@@ -1,8 +1,11 @@
 #include "Model.h"
+#include <assimp/postprocess.h>
 #include <log.h>
 
+std::vector<Model*> Model::m_modelArray = {};
+
 /***********************************************************************************/
-Model::Model(const std::string& Path) {
+Model::Model(const std::string& Path) : m_instanced(false) {
 	
 	try {
 		loadModel(Path);
@@ -10,6 +13,9 @@ Model::Model(const std::string& Path) {
 	catch (const std::runtime_error& e) {
 		std::cerr << "Runtime exception: " << e.what();
 	}
+
+	// Need to use helper functions from STL to get a shared_ptr from "this".
+	m_modelArray.push_back(this);
 }
 
 /***********************************************************************************/
@@ -42,7 +48,7 @@ void Model::DrawInstanced(const Shader& shader) {
 void Model::loadModel(const std::string& Path) {
 	std::cout << "\nLoading model: " << Path << '\n';
 	Assimp::Importer importer;
-	const aiScene* scene = importer.ReadFile(Path, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace);
+	const aiScene* scene = importer.ReadFile(Path, aiProcess_Triangulate | aiProcess_FlipUVs | aiProcess_CalcTangentSpace | aiProcess_OptimizeMeshes);
 
 	// Check if scene is not null and model is done loading
 	if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
@@ -78,11 +84,12 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene) {
 	std::vector<Vertex> vertices;
 	std::vector<GLuint> indices;
 	std::vector<Texture> textures;
+	textures.reserve(50 * sizeof(Texture)); // Reserve space for 50 textures to reduce chance of resizing later.
 
 	for (GLuint i = 0; i < mesh->mNumVertices; ++i) {
 		Vertex vertex;
-		glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
-		
+		glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3
+
 		// Positions
 		vector.x = mesh->mVertices[i].x;
 		vector.y = mesh->mVertices[i].y;
@@ -100,6 +107,12 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene) {
 		vector.y = mesh->mTangents[i].y;
 		vector.z = mesh->mTangents[i].z;
 		vertex.Tangent = vector;
+
+		// Bitangents
+		vector.x = mesh->mBitangents[i].x;
+		vector.y = mesh->mBitangents[i].y;
+		vector.z = mesh->mBitangents[i].z;
+		vertex.Bitangent = vector;
 
 		// Texture Coordinates
 		if (mesh->mTextureCoords[0]) { // Does the mesh contain texture coordinates?
@@ -134,6 +147,7 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene) {
 		// Same applies to other texture as the following list summarizes:
 		// Diffuse: texture_diffuseN
 		// Specular: texture_specularN
+		// Reflectance: texture_reflectanceN
 		// Normal: texture_normalN
 
 		// 1. Diffuse maps
@@ -149,8 +163,8 @@ Mesh Model::processMesh(aiMesh* mesh, const aiScene* scene) {
 		textures.insert(textures.end(), reflectanceMaps.begin(), reflectanceMaps.end());
 
 		// 4. Normal maps
-		//std::vector<Texture> normalMaps = loadMatTextures(material, aiTextureType_HEIGHT, "texture_normal");
-		//textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
+		std::vector<Texture> normalMaps = loadMatTextures(material, aiTextureType_HEIGHT, "texture_normal");
+		textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
 	}
 
 	// Return a mesh object created from the extracted mesh data

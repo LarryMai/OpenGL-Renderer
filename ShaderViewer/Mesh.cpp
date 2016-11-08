@@ -1,5 +1,6 @@
 #include "Mesh.h"
-#include <cstdarg>
+#include "Renderer.h"
+
 
 /***********************************************************************************/
 Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<GLuint>& indices, const std::vector<Texture>& textures) :
@@ -46,7 +47,7 @@ void Mesh::Draw(const Shader& shader) {
 
 	// Draw mesh
 	glBindVertexArray(m_vao);
-	glDrawElements(GL_TRIANGLES, m_indices.size(), GL_UNSIGNED_INT, 0);
+	Renderer::DrawElements(oglplus::PrimitiveType::Triangles, m_indices.size(), oglplus::DataType::UnsignedInt);
 	glBindVertexArray(0);
 }
 
@@ -57,7 +58,7 @@ void Mesh::DrawInstanced(const Shader& shader) {
 
 	// Draw instanced mesh
 	glBindVertexArray(m_vao);
-	glDrawElementsInstanced(GL_TRIANGLES, m_indices.size(), GL_UNSIGNED_INT, 0, m_instanceOffsets.size());
+	Renderer::DrawElementsInstanced(oglplus::PrimitiveType::Triangles, m_indices.size(), oglplus::DataType::UnsignedInt, m_instanceOffsets.size());
 	glBindVertexArray(0);
 }
 
@@ -66,10 +67,11 @@ void Mesh::bindTextures(const Shader &shader) {
 	GLuint diffuseNr = 1;
 	GLuint specularNr = 1;
 	GLuint reflectanceNr = 1;
+	GLuint normalNr = 1;
 
 	GLuint index = 0;
 	for (auto& it : m_textures) {
-		glActiveTexture(GL_TEXTURE0 + index); // Activate proper texture unit before binding
+		oglplus::Texture::Active(0 + index); // Activate proper texture unit before binding
 											  // Retrieve texture number (the N in diffuse_textureN)
 		std::string name = it.GetSampler();
 		std::string number;
@@ -83,6 +85,9 @@ void Mesh::bindTextures(const Shader &shader) {
 		if (name == "texture_reflectance") {
 			number = std::to_string(reflectanceNr++);
 		}
+		if (name == "texture_normal") {
+			number = std::to_string(normalNr++);
+		}
 
 		glUniform1i(shader.GetUniformLoc(name + number), index);
 		glBindTexture(GL_TEXTURE_2D, it.GetTexture());
@@ -90,7 +95,7 @@ void Mesh::bindTextures(const Shader &shader) {
 		++index;
 	}
 
-	glActiveTexture(GL_TEXTURE0);
+	oglplus::Texture::Active(0);
 }
 
 /***********************************************************************************/

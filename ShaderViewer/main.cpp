@@ -20,8 +20,7 @@
 #include "HUDText.h"
 #include "Timer.h"
 #include "Renderer.h"
-#include "FrameBuffer.h"
-#include "PostProcess.h"
+#include "ScreenQuad.h"
 
 // Function prototypes
 void key_callback(GLFWwindow* window, int key, int scancode, int action, int mode);
@@ -48,7 +47,7 @@ int main() {
 
 	// Init GLFW
 	if (!glfwInit()) {
-		throw std::runtime_error("GLFW initialization error");
+		throw std::runtime_error("GLFW initialization error.");
 	}
 
 	// Set all the required options for GLFW
@@ -70,26 +69,9 @@ int main() {
 	glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
 	// Start up OpenGL renderer
-	Renderer renderer(1280, 720, Renderer::RenderMode::FILLED);
+	Renderer renderer(1280, 720);
 
-	// Create uniform buffer object for projection and view matrices (same data shared to multiple shaders)
-	GLuint uboMatrices;
-	glGenBuffers(1, &uboMatrices);
-	glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
-	glBufferData(GL_UNIFORM_BUFFER, 2 * sizeof(glm::mat4), NULL, GL_STATIC_DRAW); // Allocate memory, but do not fill
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-	// Define range of the buffer that links to a binding point
-	glBindBufferRange(GL_UNIFORM_BUFFER, 0, uboMatrices, 0, 2 * sizeof(glm::mat4));
-
-	// Projection matrix does not change at runtime (constant window size)
-	glm::mat4 projection = glm::perspective(camera.GetFOV(), static_cast<float>(WIDTH) / static_cast<float>(HEIGHT), 0.1f, 100.0f);
-	glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
-	// Insert data into allocated memory block
-	glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(glm::mat4), glm::value_ptr(projection));
-	glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-	FrameBuffer fb(WIDTH, HEIGHT, false, false);
-	PostProcess pp("shaders/screenQuadVert.glsl", "shaders/screenQuadPixel.glsl");
+	ScreenQuad screenQuad;
 
 	// Shaders
 	Shader floorShader("shaders/common.vert", "shaders/floorvs.glsl", "shaders/floorps.glsl");
@@ -98,6 +80,44 @@ int main() {
 	Shader skyboxShader("", "shaders/skyboxvs.glsl", "shaders/skyboxps.glsl");
 	Shader fontShader("", "shaders/fontvs.glsl", "shaders/fontps.glsl");
 
+	Shader geometryPassShader("", "shaders/deferredGeometryPassVS.glsl", "shaders/deferredGeometryPassPS.glsl");
+	Shader lightingPassShader("", "shaders/deferredLightPassVS.glsl", "shaders/deferredLightPassPS.glsl");
+
+	// Set samplers
+	lightingPassShader.Use();
+	glUniform1i(lightingPassShader.GetUniformLoc("gPosition"), 0);
+	glUniform1i(lightingPassShader.GetUniformLoc("gNormal"), 1);
+	glUniform1i(lightingPassShader.GetUniformLoc("gAlbedoSpec"), 2);
+
+	std::vector<glm::vec3> objectPositions;
+	objectPositions.push_back(glm::vec3(-3.0, -3.0, -3.0));
+	objectPositions.push_back(glm::vec3(0.0, -3.0, -3.0));
+	objectPositions.push_back(glm::vec3(3.0, -3.0, -3.0));
+	objectPositions.push_back(glm::vec3(-3.0, -3.0, 0.0));
+	objectPositions.push_back(glm::vec3(0.0, -3.0, 0.0));
+	objectPositions.push_back(glm::vec3(3.0, -3.0, 0.0));
+	objectPositions.push_back(glm::vec3(-3.0, -3.0, 3.0));
+	objectPositions.push_back(glm::vec3(0.0, -3.0, 3.0));
+	objectPositions.push_back(glm::vec3(3.0, -3.0, 3.0));
+
+	// - Colors
+	const GLuint NR_LIGHTS = 32;
+	std::vector<glm::vec3> lightPositions;
+	std::vector<glm::vec3> lightColors;
+	srand(13);
+	for (GLuint i = 0; i < NR_LIGHTS; ++i) {
+		// Calculate slightly random offsets
+		GLfloat xPos = ((rand() % 100) / 100.0) * 6.0 - 3.0;
+		GLfloat yPos = ((rand() % 100) / 100.0) * 6.0 - 4.0;
+		GLfloat zPos = ((rand() % 100) / 100.0) * 6.0 - 3.0;
+		lightPositions.push_back(glm::vec3(xPos, yPos, zPos));
+		// Also calculate random color
+		GLfloat rColor = ((rand() % 100) / 200.0f) + 0.5; // Between 0.5 and 1.0
+		GLfloat gColor = ((rand() % 100) / 200.0f) + 0.5; // Between 0.5 and 1.0
+		GLfloat bColor = ((rand() % 100) / 200.0f) + 0.5; // Between 0.5 and 1.0
+		lightColors.push_back(glm::vec3(rColor, gColor, bColor));
+	}
+
 	HUDText debugText(fontShader, "fonts/arial.ttf", WIDTH, HEIGHT);
 	Skybox skybox("skybox/ocean/");
 	Light light(glm::vec3(2.3f, 2.0f, -3.0f), glm::vec3(1.0f), Light::POINTLIGHT);
@@ -105,67 +125,129 @@ int main() {
 	Model floor("models/floor/3d-model.obj");
 	floor.SetInstancing( { glm::vec3(0.0f), glm::vec3(-14.575f, 0.0f, 0.0f), glm::vec3(14.575f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 14.575f) } );
 
-	// Game loop
-	while (!glfwWindowShouldClose(window)) {
+	// Set up G-Buffer
+	// 3 textures:
+	// 1. Positions (RGB)
+	// 2. Color (RGB) + Specular (A)
+	// 3. Normals (RGB) 
+	GLuint gBuffer;
+	glGenFramebuffers(1, &gBuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+	GLuint gPosition, gNormal, gAlbedoSpec;
+	
+	// - Position color buffer
+	glGenTextures(1, &gPosition);
+	glBindTexture(GL_TEXTURE_2D, gPosition);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WIDTH, HEIGHT, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, gPosition, 0);
+	
+	// - Normal color buffer
+	glGenTextures(1, &gNormal);
+	glBindTexture(GL_TEXTURE_2D, gNormal);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, WIDTH, HEIGHT, 0, GL_RGB, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, gNormal, 0);
+	
+	// - Color + Specular color buffer
+	glGenTextures(1, &gAlbedoSpec);
+	glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, WIDTH, HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, gAlbedoSpec, 0);
+	
+	// - Tell OpenGL which color attachments we'll use (of this framebuffer) for rendering 
+	GLuint attachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+	glDrawBuffers(3, attachments);
+	
+	// - Create and attach depth buffer (renderbuffer)
+	GLuint rboDepth;
+	glGenRenderbuffers(1, &rboDepth);
+	glBindRenderbuffer(GL_RENDERBUFFER, rboDepth);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, WIDTH, HEIGHT);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
+	// - Finally check if framebuffer is complete
+	if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+		std::cerr << "Framebuffer not complete!" << std::endl;
+	}
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
+	Renderer::ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	// Update loop
+	while (!glfwWindowShouldClose(window)) {
+		
 		renderer.PreRender(glfwGetTime());
-		// Check if any events have been activiated (key pressed, mouse moved etc.) and call corresponding response functions
+		// Check for any events (key pressed, mouse moved etc.).
 		glfwPollEvents();
 		do_movement();
 
-		fb.Bind();
-		// Render to bound framebuffer
-		{
-			// Clear the colorbuffer
-			Renderer::ClearColor(0.3f, 0.3, 0.3, 1.0f);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	
-			// Enable depth testing for 3D stuff
-			Renderer::EnableCapability(oglplus::Capability::DepthTest);
-			
-			// Transformations
-			glm::mat4 view = camera.GetViewMatrixGL();
-			glBindBuffer(GL_UNIFORM_BUFFER, uboMatrices);
-			glBufferSubData(GL_UNIFORM_BUFFER, sizeof(glm::mat4), sizeof(glm::mat4), glm::value_ptr(view));
-			
-			light.Draw(lightShader);
-			
-			shader.Use();
-			glUniform3f(shader.GetUniformLoc("viewPos"), camera.GetPosition().x, camera.GetPosition().y, camera.GetPosition().z);
-			// We already have 3 texture units active (in this shader) so set the skybox as the 4th texture unit (texture units are 0 based so index number 3)
-			glActiveTexture(GL_TEXTURE3);
-			glUniform1i(shader.GetUniformLoc("skybox"), 3);
-			skybox.BindTexture();
-	
-			// Draw loaded models
-			glm::mat4 model;
-			model = glm::translate(model, glm::vec3(0.0f, 0.175f, 0.0f));
-			model = glm::scale(model, glm::vec3(0.2f, 0.2f, 0.2f));
-			glUniformMatrix4fv(shader.GetUniformLoc("model"), 1, GL_FALSE, value_ptr(model));
-			nanosuit.Draw(shader);
-	
-			floorShader.Use();
-			model = glm::mat4();
-			model = glm::scale(model, glm::vec3(0.3f, 0.2f, 0.3f));
-			glUniformMatrix4fv(shader.GetUniformLoc("model"), 1, GL_FALSE, value_ptr(model));
-			floor.DrawInstanced(floorShader);
-	
-			//Always draw skybox last
-			skybox.Draw(camera.GetViewMatrixGL(), projection);
-		}
-		fb.UnBind(); 
-		// Switch back to default framebuffer
+		// Geometry pass
+		// 1. Geometry Pass: render scene's geometry/color data into gbuffer
+		glBindFramebuffer(GL_FRAMEBUFFER, gBuffer);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glm::mat4 projection = glm::perspective(camera.GetFOV(), static_cast<GLfloat>(WIDTH) / static_cast<GLfloat>(HEIGHT), 0.1f, 100.0f);
+		glm::mat4 view = camera.GetViewMatrixGL();
+		glm::mat4 model;
 
-		Renderer::ClearColor(1.0f, 1.0f, 1.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		geometryPassShader.Use();
+		glUniformMatrix4fv(geometryPassShader.GetUniformLoc("projection"), 1, GL_FALSE, glm::value_ptr(projection));
+		glUniformMatrix4fv(geometryPassShader.GetUniformLoc("view"), 1, GL_FALSE, glm::value_ptr(view));
+		for (GLuint i = 0; i < 1; ++i) {
+			model = glm::mat4();
+			model = glm::translate(model, objectPositions.at(i));
+			model = glm::scale(model, glm::vec3(0.25f));
+			glUniformMatrix4fv(geometryPassShader.GetUniformLoc("model"), 1, GL_FALSE, glm::value_ptr(model));
+			nanosuit.Draw(geometryPassShader);
+		}
+
+		model = glm::mat4();
+		model = glm::scale(model, glm::vec3(0.3f, 0.2f, 0.3f));
+		glUniformMatrix4fv(geometryPassShader.GetUniformLoc("model"), 1, GL_FALSE, value_ptr(model));
+		floor.DrawInstanced(geometryPassShader);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		// Lighting Pass
+
+		//oglplus::Texture::Active(3);
+		//glUniform1i(lightingPassShader.GetUniformLoc("skybox"), 3);
+		//skybox.BindTexture();
+		/// DRAW INSTANCED
+		// 2. Lighting Pass: calculate lighting by iterating over a screen filled quad pixel-by-pixel using the gbuffer's content.
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		lightingPassShader.Use();
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, gPosition);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, gNormal);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, gAlbedoSpec);
+		// Also send light relevant uniforms
+		for (GLuint i = 0; i < lightPositions.size(); i++)
+		{
+			glUniform3fv(lightingPassShader.GetUniformLoc("lights[" + std::to_string(i) + "].Position"), 1, &lightPositions[i][0]);
+			glUniform3fv(lightingPassShader.GetUniformLoc("lights[" + std::to_string(i) + "].Color"), 1, &lightColors[i][0]);
+			// Update attenuation parameters and calculate radius
+			const GLfloat constant = 1.0; // Note that we don't send this to the shader, we assume it is always 1.0 (in our case)
+			const GLfloat linear = 0.7;
+			const GLfloat quadratic = 1.8;
+			glUniform1f(lightingPassShader.GetUniformLoc("lights[" + std::to_string(i) + "].Linear"), linear);
+			glUniform1f(lightingPassShader.GetUniformLoc("lights[" + std::to_string(i) + "].Quadratic"), quadratic);
+		}
+		glUniform3fv(lightingPassShader.GetUniformLoc("viewPos"), 1, &camera.GetPosition()[0]);
+
+		//skybox.Draw(camera.GetViewMatrixGL(), projection);
 		// Disable depth test for screen quad and HUD
 		Renderer::DisableCapability(oglplus::Capability::DepthTest);
 
 		// Render post-processed quad
-		pp.RendertoScreen(fb);
+		screenQuad.Draw();
 
 		// Draw Text on top of everything
-		debugText.RenderText(fontShader, std::to_string(renderer.GetFPS()) + " fps", 0.0f, HEIGHT - 36.0f, 1.0f, glm::vec3(0.0f));
+		debugText.RenderText(fontShader, std::to_string(renderer.GetFPS()) + " fps", 0.0f, HEIGHT - 36.0f, 1.0f, glm::vec3(1.0f));
 		
 		// Swap the screen buffers
 		glfwSwapBuffers(window);

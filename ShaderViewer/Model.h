@@ -2,7 +2,7 @@
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
-#include <assimp/postprocess.h>
+#include <vector>
 
 #include "Mesh.h"
 
@@ -24,7 +24,11 @@ private:
 
 	std::vector<Mesh> m_meshes;
 	std::vector<Texture> m_loadedTextures;
+	
+	// Array of pointers to all loaded models (easy way to iterate through all models)
+	// Need to add shared_from_this()
+	static std::vector<Model*> m_modelArray;
 
 	std::string m_directory;
+	bool m_instanced;
 };
-

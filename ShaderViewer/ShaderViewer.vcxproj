@@ -163,6 +163,7 @@
     <ClCompile Include="Model.cpp" />
     <ClCompile Include="PostProcess.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="ScreenQuad.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Skybox.cpp" />
     <ClCompile Include="Texture.cpp" />
@@ -180,6 +181,7 @@
     <ClInclude Include="Model.h" />
     <ClInclude Include="PostProcess.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="ScreenQuad.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Skybox.h" />
     <ClInclude Include="Texture.h" />

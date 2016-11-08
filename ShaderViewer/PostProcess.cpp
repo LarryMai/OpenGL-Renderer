@@ -9,7 +9,7 @@ PostProcess::PostProcess(const std::string& screenVertShader, const std::string&
 	glGenBuffers(1, &m_screenVBO);
 	glBindVertexArray(m_screenVAO);
 	glBindBuffer(GL_ARRAY_BUFFER, m_screenVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(m_quadVertices), &m_quadVertices, GL_STATIC_DRAW); // sizeof is size in BYTES. .size() is length of container >.>
+	//glBufferData(GL_ARRAY_BUFFER, sizeof(m_quadVertices), &m_quadVertices, GL_STATIC_DRAW); // sizeof is size in BYTES. .size() is length of container >.>
 	// Positions
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), (GLvoid*)0);

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <string>
 #include <vector>
 
 #include <GL\glew.h>
@@ -14,6 +13,7 @@ struct Vertex {
 	glm::vec3 Normal;
 	glm::vec2 TexCoords;
 	glm::vec3 Tangent;
+	glm::vec3 Bitangent;
 };
 
 class Mesh {
@@ -30,6 +30,7 @@ private:
 	void setupMesh();
 
 	GLuint m_vao, m_vbo, m_ebo, m_instanceVBO;
+
 	std::vector<Vertex> m_vertices;
 	std::vector<GLuint> m_indices;
 	std::vector<Texture> m_textures;

@@ -1,15 +1,11 @@
 #pragma once
 
-#include <string>
 #include <map>
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
 #include <GL/glew.h>
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #include "Shader.h"
@@ -32,6 +28,8 @@ private:
 
 	std::map<GLchar, Character> m_characters;
 
-	GLuint m_vao, m_vbo;
+	//GLuint m_vao, m_vbo;
+	oglplus::VertexArray m_vao;
+	oglplus::Buffer m_vbo;
 };
 

@@ -1,5 +1,7 @@
 #include "HUDText.h"
+#include "Renderer.h"
 
+#include <glm/gtc/matrix_transform.hpp>
 
 /***********************************************************************************/
 HUDText::HUDText(Shader& shader, const std::string& FontPath, const GLint WindowWidth, const GLint WindowHeight) {
@@ -28,9 +30,8 @@ HUDText::HUDText(Shader& shader, const std::string& FontPath, const GLint Window
 	// Load first 128 characters of ASCII set
 	for (GLubyte c = 0; c < 128; c++) {
 		// Load character glyph 
-		if (FT_Load_Char(face, c, FT_LOAD_RENDER))
-		{
-			std::cout << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
+		if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+			std::cerr << "ERROR::FREETYTPE: Failed to load Glyph" << std::endl;
 			continue;
 		}
 		// Generate texture
@@ -70,16 +71,11 @@ HUDText::HUDText(Shader& shader, const std::string& FontPath, const GLint Window
 	FT_Done_FreeType(ft);
 
 	// Configure VAO/VBO for texture quads
-	glGenVertexArrays(1, &m_vao);
-	glGenBuffers(1, &m_vbo);
-	glBindVertexArray(m_vao);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+	m_vao.Bind();
+	m_vbo.Bind(oglplus::Buffer::Target::Array);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * 6 * 4, NULL, GL_DYNAMIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(GLfloat), 0);
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
 }
 
 /***********************************************************************************/
@@ -88,11 +84,13 @@ HUDText::~HUDText() {
 
 /***********************************************************************************/
 void HUDText::RenderText(Shader& shader, const std::string& Text, GLfloat x, const GLfloat y, const GLfloat scale, const glm::vec3& color) {
+	Renderer::SetRenderMode(oglplus::PolygonMode::Fill); // So the text doesn't draw as a wireframe
+
 	// Activate corresponding render state	
 	shader.Use();
 	glUniform3f(shader.GetUniformLoc("textColor"), color.x, color.y, color.z);
-	glActiveTexture(GL_TEXTURE0);
-	glBindVertexArray(m_vao);
+	oglplus::Texture::Active(0);
+	m_vao.Bind();
 
 	// Iterate through all characters
 	std::string::const_iterator c;
@@ -118,15 +116,12 @@ void HUDText::RenderText(Shader& shader, const std::string& Text, GLfloat x, con
 		glBindTexture(GL_TEXTURE_2D, ch.TextureID);
 		
 		// Update content of VBO memory
-		glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+		m_vbo.Bind(oglplus::BufferTarget::Array);
 		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices); // Be sure to use glBufferSubData and not glBufferData
 
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		// Render quad
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		Renderer::DrawArrays(oglplus::PrimitiveType::Triangles, 0, 6);
 		// Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
 		x += (ch.Advance >> 6) * scale; // Bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
 	}
-	glBindVertexArray(0);
-	glBindTexture(GL_TEXTURE_2D, 0);
 }

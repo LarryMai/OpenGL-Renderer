@@ -1,4 +1,4 @@
-/* common.vert pre-pended @ runtime:
+/* common.vert prepended @ runtime:
 GLSL version
 Vertex attributes
 model uniform (mat4)
